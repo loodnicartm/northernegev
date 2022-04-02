@@ -20,15 +20,15 @@ head(checkpoints_data)[,1:56]
 
 #create the training and test data
 set.seed(100)
-trainRowNumbers<-createDataPartition(checkpoints_data$agro_type, p=0.8, list=FALSE)
+trainRowNumbers<-createDataPartition(checkpoints_data$NDVI_summ_slope, p=0.7, list=FALSE)
 trainData <- checkpoints_data[trainRowNumbers, ]
 testData <- checkpoints_data[-trainRowNumbers, ]
-x = trainData[4:20]
-y = trainData$agro_type
+x = trainData[3:14]
+y = trainData$NDVI_summ_slope
 
 library(skimr)
 skimmed <- skim(trainData)
-skimmed [, c(4:20)]
+skimmed [, c(3:14)]
 
 #one-hot encoding
 #creating the dummy variables-converting a categorical variable to as many binary variables as here are categories.
@@ -40,21 +40,19 @@ trainData <- data.frame(trainData_mat)
 str(trainData)
 
 #preprocess
-preProcess_range_model <- preProcess(trainData, method='range')
+preProcess_range_model <- preProcess(trainData, method='bagImpute')
 trainData <- predict(preProcess_range_model, newdata = trainData)
 
 # Append the Y variable
 trainData$NDVI_summ_slope <- y
 
-apply(trainData[, 4:18], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
+apply(trainData[, 3:14], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
 
 
 #visual try
-featurePlot(x = trainData[, 4:20],
-            y = trainData$agro_type,
-            plot = "box",
+featurePlot(x = trainData[, 3:14],
+            y = trainData$NDVI_summ_slope,
+            plot = "boxplot", auto.key=list(columns=3),
             strip = strip.custom(par.strip.text=list(cex=.7)),
             scales = list(x=list(relation="free"),
-                        y = list(relation="free")))
-
- 
+                        y=list(relation="free")))
