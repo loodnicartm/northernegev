@@ -101,4 +101,10 @@ modelLookup('svmRadial')
 
 #starting with models:
 
+#MARS
+set.seed(100)
 
+model_mars = train(NDVI_summ_slope ~ ., data=trainData, method='earth')
+fitted <- predict(model_mars)
+model_mars
+plot(model_mars, main="Model Accuracies with MARS")
