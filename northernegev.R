@@ -39,7 +39,7 @@ trainData <- data.frame(trainData_mat)
 # See the structure of the new data set
 str(trainData)
 
-#preprocess
+#preprocess 
 preProcess_range_model <- preProcess(trainData, method='bagImpute')
 trainData <- predict(preProcess_range_model, newdata = trainData)
 
@@ -50,9 +50,55 @@ apply(trainData[, 3:15], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
 
 
 #visual try
-featurePlot(x = trainData[1:12],
+featurePlot(x = trainData[3:15],
             y = trainData$NDVI_summ_slope,
             plot = "box",
             strip = strip.custom(par.strip.text=list(cex=.7)),
             scales = list(x=list(relation="free"),
                         y=list(relation="free")))
+
+#feature selection using recursive feature elimination rfe: NDVI
+set.seed(100)
+options(warn=-1)
+
+subsets <- c(3:15)
+
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+lmProfile <- rfe(x=trainData[, 3:15], y=trainData$NDVI_summ_slope,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+
+lmProfile
+
+#feature selection using recursive feature elimination rfe: TD Index
+set.seed(100)
+options(warn=-1)
+
+subsets <- c(3:15)
+
+ctrl <- rfeControl(functions = rfFuncs,
+                   method = "repeatedcv",
+                   repeats = 5,
+                   verbose = FALSE)
+
+lmProfile <- rfe(x=trainData[, 3:15], y=trainData$TD.index,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+
+lmProfile
+
+
+#exploring models
+modelLookup('earth')
+modelLookup('rf')
+modelLookup('adaboost')
+modelLookup('xgbDART')
+modelLookup('svmRadial')
+
+#starting with models:
+
+
