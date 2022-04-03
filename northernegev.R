@@ -12,8 +12,12 @@ install.packages('C50')
 install.packages('earth')
 
 #loading caret
+# You already loaded caret above
 library(caret)
-checkpoints_data <- read.csv('C:/Users/Tarik/Desktop/checkpoints_table_FINAL_.csv')
+# Suggest to set a variable to the path
+checkpoints_file <- 'C:/Users/Tarik/Desktop/checkpoints_table_FINAL_.csv'
+checkpoints_data <- read.csv(checkpoints_file
+# This is a small file. Can you just add to git?)
 View(checkpoints_data)
 str(checkpoints_data)
 head(checkpoints_data)[,3:14]
@@ -26,6 +30,7 @@ testData <- checkpoints_data[-trainRowNumbers,]
 x = trainData[, 3:14]
 y = trainData$NDVI_summ_slope
 
+# already loaded above
 library(skimr)
 skimmed <- skim(trainData)
 skimmed [, c(1:12)]
@@ -44,14 +49,15 @@ preProcess_range_model <- preProcess(trainData, method='bagImpute')
 trainData <- predict(preProcess_range_model, newdata = trainData)
 
 # Append the Y variable
+# You defined x and y above, just use these variables in the model. No need to redefine
 trainData$NDVI_summ_slope <- y
 
 apply(trainData[, 3:14], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
 
 
 #visual try
-featurePlot(x = trainData[, 3:14],
-            y = trainData$NDVI_summ_slope,
+# You defined x and y above, just use these variables in the model. No need to redefine
+featurePlot(x = x, y = y,
             plot = "box",
             strip = strip.custom(par.strip.text=list(cex=.7)),
             scales = list(x=list(relation="free"),
@@ -68,6 +74,7 @@ ctrl <- rfeControl(functions = rfFuncs,
                    repeats = 5,
                    verbose = FALSE)
 
+# You defined x and y above, just use these variables in the model. No need to redefine
 lmProfile <- rfe(x=trainData[, 3:14], y=trainData$NDVI_summ_slope,
                  sizes = subsets,
                  rfeControl = ctrl)
