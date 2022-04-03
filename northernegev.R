@@ -106,5 +106,95 @@ set.seed(100)
 
 model_mars = train(NDVI_summ_slope ~ ., data=trainData, method='earth')
 fitted <- predict(model_mars)
-model_mars
+fitted
+print(model_mars)
+summary(model_mars)
+summary(model_mars)%>% .$coefficients %>% head(10)
+hyper_grid <- expand.grid(
+  degree = 1:3, 
+  nprune = seq(2, 100, length.out = 10) %>% floor())
+hyper_grid
+
+set.seed(123)
+
+# cross validated model
+tuned_mars <- train(
+  x = subset(trainData, select = -NDVI_summ_slope),
+  y = trainData$NDVI_summ_slope,
+  method = "earth",
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 10),
+  tuneGrid = hyper_grid)
+
+tuned_mars$bestTune
+
+#plots mars
+ggplot(tuned_mars)  
 plot(model_mars, main="Model Accuracies with MARS")
+
+#variable importance
+varimp_mars <- varImp(model_mars)
+plot(varimp_mars, main="Variable Importance with MARS")
+
+# multiple regression
+set.seed(123)
+cv_model1 <- train(
+  NDVI_summ_slope ~ ., 
+  data = trainData, 
+  method = "lm",
+  metric = "RMSE",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("zv", "center", "scale"))
+
+
+# principal component regression
+set.seed(123)
+cv_model2 <- train(
+  NDVI_summ_slope ~ ., 
+  data = trainData, 
+  method = "pcr",
+  trControl = trainControl(method = "cv", number = 10),
+  metric = "RMSE",
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 20)
+
+# partial least squares regression
+set.seed(123)
+cv_model3 <- train(
+  NDVI_summ_slope ~ ., 
+  data = trainData, 
+  method = "pls",
+  trControl = trainControl(method = "cv", number = 10),
+  metric = "RMSE",
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 20)
+
+# regularized regression
+set.seed(123)
+cv_model4 <- train(
+  NDVI_summ_slope~ ., 
+  data = trainData,
+  method = "glmnet",
+  trControl = trainControl(method = "cv", number = 10),
+  metric = "RMSE",
+  preProcess = c("zv", "center", "scale"),
+  tuneLength = 10)
+
+summary(resamples(list(
+  Multiple_regression = cv_model1, 
+  PCR = cv_model2, 
+  PLS = cv_model3,
+  Elastic_net = cv_model4,
+  MARS = tuned_mars
+)))$statistics$RMSE %>%
+  kableExtra::kable() %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover"))
+
+install.packages("kableExtra")
+install.packages("vip")
+library(vip)
+p1 <- vip(tuned_mars, num_features = 40, bar = FALSE, value = "gcv") + ggtitle("GCV")
+p2 <- vip(tuned_mars, num_features = 40, bar = FALSE, value = "rss") + ggtitle("RSS")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+
