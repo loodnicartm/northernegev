@@ -16,14 +16,14 @@ library(caret)
 checkpoints_data <- read.csv('C:/Users/Tarik/Desktop/checkpoints_table_FINAL_.csv')
 View(checkpoints_data)
 str(checkpoints_data)
-head(checkpoints_data)[,1:56]
+head(checkpoints_data)[,3:14]
 
 #create the training and test data, 70:30
 set.seed(100)
 trainRowNumbers<-createDataPartition(checkpoints_data$NDVI_summ_slope, p=0.7, list=FALSE)
-trainData <- checkpoints_data[trainRowNumbers, ]
-testData <- checkpoints_data[-trainRowNumbers, ]
-x = trainData[3:15]
+trainData <- checkpoints_data[trainRowNumbers,]
+testData <- checkpoints_data[-trainRowNumbers,]
+x = trainData[, 3:14]
 y = trainData$NDVI_summ_slope
 
 library(skimr)
@@ -46,11 +46,11 @@ trainData <- predict(preProcess_range_model, newdata = trainData)
 # Append the Y variable
 trainData$NDVI_summ_slope <- y
 
-apply(trainData[, 3:15], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
+apply(trainData[, 3:14], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
 
 
 #visual try
-featurePlot(x = trainData[3:15],
+featurePlot(x = trainData[, 3:14],
             y = trainData$NDVI_summ_slope,
             plot = "box",
             strip = strip.custom(par.strip.text=list(cex=.7)),
@@ -62,18 +62,18 @@ set.seed(100)
 options(warn=-1)
 
 subsets <- c(3:15)
-
+subsets
 ctrl <- rfeControl(functions = rfFuncs,
                    method = "repeatedcv",
                    repeats = 5,
                    verbose = FALSE)
 
-lmProfile <- rfe(x=trainData[, 3:15], y=trainData$NDVI_summ_slope,
+lmProfile <- rfe(x=trainData[, 3:14], y=trainData$NDVI_summ_slope,
                  sizes = subsets,
                  rfeControl = ctrl)
 
 lmProfile
-
+ggplot(lmProfile)
 #feature selection using recursive feature elimination rfe: TD Index
 set.seed(100)
 options(warn=-1)
@@ -85,12 +85,12 @@ ctrl <- rfeControl(functions = rfFuncs,
                    repeats = 5,
                    verbose = FALSE)
 
-lmProfile <- rfe(x=trainData[, 3:15], y=trainData$TD.index,
+lmProfile1 <- rfe(x=trainData[, 3:15], y=trainData$TD.index,
                  sizes = subsets,
                  rfeControl = ctrl)
 
-lmProfile
-
+lmProfile1
+ggplot(lmProfile1)
 
 #exploring models
 modelLookup('earth')
@@ -114,6 +114,12 @@ hyper_grid <- expand.grid(
   degree = 1:3, 
   nprune = seq(2, 100, length.out = 10) %>% floor())
 hyper_grid
+
+#predict
+predicted <- predict(model_mars, testData$NDVI_summ_slope)
+head(predicted) 
+# Compute the confusion matrix
+confusionMatrix(reference = testData$NDVI_summ_slope, data = predicted, mode='everything', positive='MM')
 
 set.seed(123)
 
