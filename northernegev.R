@@ -116,8 +116,8 @@ hyper_grid <- expand.grid(
 hyper_grid
 
 #predict
-predicted <- predict(model_mars, testData$NDVI_summ_slope)
-head(predicted) 
+predicted <- predict(model_mars, testData$NDVI_summ_slope, interval='confidence')
+head(predicted)
 # Compute the confusion matrix
 confusionMatrix(reference = testData$NDVI_summ_slope, data = predicted, mode='everything', positive='MM')
 
@@ -135,7 +135,7 @@ tuned_mars <- train(
 tuned_mars$bestTune
 
 #plots mars
-ggplot(tuned_mars)  
+ggplot(tuned_mars)
 plot(model_mars, main="Model Accuracies with MARS")
 
 #variable importance
@@ -152,6 +152,7 @@ cv_model1 <- train(
   trControl = trainControl(method = "cv", number = 10),
   preProcess = c("zv", "center", "scale"))
 
+cv_model1
 
 # principal component regression
 set.seed(123)
@@ -164,6 +165,8 @@ cv_model2 <- train(
   preProcess = c("zv", "center", "scale"),
   tuneLength = 20)
 
+cv_model2
+
 # partial least squares regression
 set.seed(123)
 cv_model3 <- train(
@@ -175,6 +178,8 @@ cv_model3 <- train(
   preProcess = c("zv", "center", "scale"),
   tuneLength = 20)
 
+cv_model3
+
 # regularized regression
 set.seed(123)
 cv_model4 <- train(
@@ -185,6 +190,8 @@ cv_model4 <- train(
   metric = "RMSE",
   preProcess = c("zv", "center", "scale"),
   tuneLength = 10)
+
+cv_model4
 
 summary(resamples(list(
   Multiple_regression = cv_model1, 
@@ -204,3 +211,60 @@ p2 <- vip(tuned_mars, num_features = 40, bar = FALSE, value = "rss") + ggtitle("
 
 gridExtra::grid.arrange(p1, p2, ncol = 2)
 
+# Define the training control
+fitControl <- trainControl(
+  method = 'cv',                   # k-fold cross validation
+  number = 5,                      # number of folds
+  savePredictions = 'final',       # saves predictions for optimal tuning parameter
+  classProbs = T,                  # should class probabilities be returned
+  summaryFunction=twoClassSummary  # results summary function
+) 
+
+#RF training
+set.seed(100)
+model_rf = train(NDVI_summ_slope, data=trainData[3:14], method='rf', tuneLength=5, trControl = fitControl)
+model_rf
+
+
+#xgBoost training
+set.seed(100)
+model_xgbDART = train(NDVI_summ_slope ~ ., data=trainData, method='xgbDART', tuneLength=5, trControl = fitControl, verbose=F)
+model_xgbDART
+
+
+#SVM training
+set.seed(100)
+model_svmRadial = train(NDVI_summ_slope ~ ., data=trainData, method='svmRadial', tuneLength=15, trControl = fitControl)
+model_svmRadial
+
+
+# Compare model performances using resample()
+models_compare <- resamples(list(ADABOOST=model_adaboost, RF=model_rf, XGBDART=model_xgbDART, MARS=model_mars3, SVM=model_svmRadial))
+
+# Summary of the models performances
+summary(models_compare)
+#summary plots
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+bwplot(models_compare, scales=scales)
+
+
+#ensemble predictions
+
+library(caretEnsemble)
+
+# Stacking Algorithms - Run multiple algos in one call.
+trainControl <- trainControl(method="repeatedcv", 
+                             number=10, 
+                             repeats=3,
+                             savePredictions=TRUE, 
+                             classProbs=TRUE)
+
+algorithmList <- c('rf', 'adaboost', 'earth', 'xgbDART', 'svmRadial')
+
+set.seed(100)
+models <- caretList(Purchase ~ ., data=trainData, trControl=trainControl, methodList=algorithmList) 
+results <- resamples(models)
+summary(results)
+# Box plots to compare models
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+bwplot(results, scales=scales)
