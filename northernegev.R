@@ -1,63 +1,108 @@
 #start of the project
-install.packages('caret')
-install.packages('skimr')
-install.packages('RANN')
-install.packages('randomForest')
-install.packages('fastAdaboost')
-install.packages('gbm','xgboost','caretEnsemble','C50','earth')
-install.packages('xgboost')
-install.packages('gbm')
-install.packages('caretEnsemble')
-install.packages('C50')
-install.packages('earth')
 
-#loading caret
-# You already loaded caret above
-library(caret)
+# MS: Here's a nice way to check for installed packages, and install only if necessary
+##--------------------------
+# Load required packages
+##--------------------------
+pkg_list = c("caret", "skimr",           
+             "RANN",            
+             "randomForest", 'ranger',          
+             "fastAdaboost", 'gbm', 'xgboost', 
+             "C50", "earth", "caretEnsemble",
+             "dplyr", "kableExtra", "corrplot")
+
+installed_packages <- pkg_list %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(pkg_list[!installed_packages])
+}
+
+# Load Packages
+lapply(pkg_list, function(p) {require(p,
+                                      character.only = TRUE,
+                                      quietly=TRUE)})
+
+# install.packages('caret')
+# install.packages('skimr')
+# install.packages('RANN')
+# install.packages('randomForest')
+# install.packages('fastAdaboost')
+# install.packages('gbm','xgboost','caretEnsemble','C50','earth')
+# install.packages('xgboost')
+# install.packages('gbm')
+# install.packages('caretEnsemble')
+# install.packages('C50')
+# install.packages('earth')
+
+##--------------------------
+# Load data and prepare train/test split
+##--------------------------
 # Suggest to set a variable to the path
-checkpoints_file <- 'C:/Users/Tarik/Desktop/checkpoints_table_FINAL_.csv'
-checkpoints_data <- read.csv(checkpoints_file
-# This is a small file. Can you just add to git?)
-View(checkpoints_data)
-str(checkpoints_data)
-head(checkpoints_data)[,3:14]
+checkpoints_file <- 'checkpoints_table_FINAL_.csv'
+checkpoints_data <- read.csv(checkpoints_file)
+head(checkpoints_data)
 
-#create the training and test data, 70:30
-set.seed(100)
-trainRowNumbers<-createDataPartition(checkpoints_data$NDVI_summ_slope, p=0.7, list=FALSE)
-trainData <- checkpoints_data[trainRowNumbers,]
-testData <- checkpoints_data[-trainRowNumbers,]
-x = trainData[, 3:14]
-y = trainData$NDVI_summ_slope
+# MS: Define X and Y for all model runs
+# MS: I use CAPS to distinguish from the function parameters
+X <- checkpoints_data[, 3:14]
+Y <- checkpoints_data$NDVI_summ_slope
 
-# already loaded above
-library(skimr)
-skimmed <- skim(trainData)
-skimmed [, c(1:12)]
+# MS: Do one-hot encoding right at the beginning
+# creating the dummy variables-converting a categorical variable 
+# to as many binary variables as here are categories.
+dummies_model <- dummyVars("~agro_type", data=X, sep="_")
+dummy_mat <- predict(dummies_model, newdata = X)
 
-#one-hot encoding
-#creating the dummy variables-converting a categorical variable to as many binary variables as here are categories.
-dummies_model <- dummyVars(" ~ .", data=trainData, fullrank = T)
-trainData_mat <- predict(dummies_model, newdata = trainData)
-#create a data frame
-trainData <- data.frame(trainData_mat)
+#create a data frame with newe one-hot encoded columns
+X <- cbind(X, as.data.frame(dummy_mat))
 # See the structure of the new data set
-str(trainData)
+str(X)
+# Now we can drop the agro_type column
+X <- select(X, -agro_type)
+
+##--------------------------
+# MS: Before continuing. check cross correlations!
+##--------------------------
+cor_matrix = cor(X)
+corrplot::corrplot(cor_matix)
+# MS: Ooops, we have two variables that are 100% correlated:
+# agro_typeshick and agro_typeliman.
+# But that's obvious since every point is either shich or liman
+# So we must remove one.
+X <- select(X, -agro_typeliman)
+# Also DD and rainfall seem highly correlated,
+# as well as two and tpi_8m
+# TODO: Decide here what to do with these....
+
+# Now create the training and test data, 70:30 split
+set.seed(100)
+trainRowNumbers<-createDataPartition(Y, p=0.7, list=FALSE)
+trainX <- X[trainRowNumbers,]
+trainY <- Y[trainRowNumbers]
+
+testX <- X[-trainRowNumbers,]
+testY <- Y[-trainRowNumbers]
+
+skim(trainX)
+skim(trainY)
+
 
 #preprocess 
-preProcess_range_model <- preProcess(trainData, method='bagImpute')
-trainData <- predict(preProcess_range_model, newdata = trainData)
+# MS: What do you want to do here? Why do you need bagImpute?
+# maybe center and scale??
+preProcess_range_model <- preProcess(trainx, method='bagImpute')
+trainX <- predict(preProcess_range_model, newdata = trainX)
 
 # Append the Y variable
 # You defined x and y above, just use these variables in the model. No need to redefine
-trainData$NDVI_summ_slope <- y
+# trainX$NDVI_summ_slope <- y
 
-apply(trainData[, 3:14], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
+# MS: What do you want to do here? Why is this necessary?
+apply(trainX[, 3:14], 2, FUN=function(x){c('min'=min(x), 'max'=max(x))})
 
 
 #visual try
-# You defined x and y above, just use these variables in the model. No need to redefine
-featurePlot(x = x, y = y,
+# MS: Don't know what's wrong here
+featurePlot(x = trainX, y = trainY,
             plot = "box",
             strip = strip.custom(par.strip.text=list(cex=.7)),
             scales = list(x=list(relation="free"),
@@ -75,31 +120,33 @@ ctrl <- rfeControl(functions = rfFuncs,
                    verbose = FALSE)
 
 # You defined x and y above, just use these variables in the model. No need to redefine
-lmProfile <- rfe(x=trainData[, 3:14], y=trainData$NDVI_summ_slope,
+lmProfile <- rfe(x=trainX, y=trainY,
                  sizes = subsets,
                  rfeControl = ctrl)
 
-lmProfile
+summary(lmProfile)
 ggplot(lmProfile)
+
+
 #feature selection using recursive feature elimination rfe: TD Index
 set.seed(100)
 options(warn=-1)
-
 subsets <- c(3:15)
-
 ctrl <- rfeControl(functions = rfFuncs,
                    method = "repeatedcv",
                    repeats = 5,
                    verbose = FALSE)
 
-lmProfile1 <- rfe(x=trainData[, 3:15], y=trainData$TD.index,
+lmProfile1 <- rfe(x=trainX, y=trainY,
                  sizes = subsets,
                  rfeControl = ctrl)
 
-lmProfile1
+summary(lmProfile1)
 ggplot(lmProfile1)
 
-#exploring models
+##--------------------------
+# exploring models
+##--------------------------
 modelLookup('earth')
 modelLookup('rf')
 modelLookup('adaboost')
@@ -107,11 +154,22 @@ modelLookup('xgbDART')
 modelLookup('svmRadial')
 
 #starting with models:
+# MS: First a very simple linear model
+trainData = cbind(trainY, trainX)
+lm1 <- lm(trainY~., data=trainData)
+summary(lm1)
+
+glm1 <- glm(trainY~., data=trainData)
+summary(glm1)
+# MS: maybe some simple scatterplots of trainY vs trainX$... will help
+# to visualize which family to use in glm ?? 
+scatter.smooth(trainX$year_plant, trainY,
+               xlab="Planing Year", ylab="NDVI slope")
 
 #MARS
 set.seed(100)
 
-model_mars = train(NDVI_summ_slope ~ ., data=trainData, method='earth')
+model_mars = train(NDVI_summ_slope ~ ., data=trainX, method='earth')
 fitted <- predict(model_mars)
 fitted
 print(model_mars)
@@ -132,8 +190,8 @@ set.seed(123)
 
 # cross validated model
 tuned_mars <- train(
-  x = subset(trainData, select = -NDVI_summ_slope),
-  y = trainData$NDVI_summ_slope,
+  x = subset(trainX, select = -NDVI_summ_slope),
+  y = trainX$NDVI_summ_slope,
   method = "earth",
   metric = "RMSE",
   trControl = trainControl(method = "cv", number = 10),
@@ -153,7 +211,7 @@ plot(varimp_mars, main="Variable Importance with MARS")
 set.seed(123)
 cv_model1 <- train(
   NDVI_summ_slope ~ ., 
-  data = trainData, 
+  data = trainX, 
   method = "lm",
   metric = "RMSE",
   trControl = trainControl(method = "cv", number = 10),
@@ -165,7 +223,7 @@ cv_model1
 set.seed(123)
 cv_model2 <- train(
   NDVI_summ_slope ~ ., 
-  data = trainData, 
+  data = trainX, 
   method = "pcr",
   trControl = trainControl(method = "cv", number = 10),
   metric = "RMSE",
@@ -178,7 +236,7 @@ cv_model2
 set.seed(123)
 cv_model3 <- train(
   NDVI_summ_slope ~ ., 
-  data = trainData, 
+  data = trainX, 
   method = "pls",
   trControl = trainControl(method = "cv", number = 10),
   metric = "RMSE",
@@ -191,7 +249,7 @@ cv_model3
 set.seed(123)
 cv_model4 <- train(
   NDVI_summ_slope~ ., 
-  data = trainData,
+  data = trainX,
   method = "glmnet",
   trControl = trainControl(method = "cv", number = 10),
   metric = "RMSE",
@@ -229,19 +287,19 @@ fitControl <- trainControl(
 
 #RF training
 set.seed(100)
-model_rf = train(NDVI_summ_slope, data=trainData[3:14], method='rf', tuneLength=5, trControl = fitControl)
+model_rf = train(NDVI_summ_slope, data=trainX[3:14], method='rf', tuneLength=5, trControl = fitControl)
 model_rf
 
 
 #xgBoost training
 set.seed(100)
-model_xgbDART = train(NDVI_summ_slope ~ ., data=trainData, method='xgbDART', tuneLength=5, trControl = fitControl, verbose=F)
+model_xgbDART = train(NDVI_summ_slope ~ ., data=trainX, method='xgbDART', tuneLength=5, trControl = fitControl, verbose=F)
 model_xgbDART
 
 
 #SVM training
 set.seed(100)
-model_svmRadial = train(NDVI_summ_slope ~ ., data=trainData, method='svmRadial', tuneLength=15, trControl = fitControl)
+model_svmRadial = train(NDVI_summ_slope ~ ., data=trainX, method='svmRadial', tuneLength=15, trControl = fitControl)
 model_svmRadial
 
 
@@ -269,7 +327,7 @@ trainControl <- trainControl(method="repeatedcv",
 algorithmList <- c('rf', 'adaboost', 'earth', 'xgbDART', 'svmRadial')
 
 set.seed(100)
-models <- caretList(Purchase ~ ., data=trainData, trControl=trainControl, methodList=algorithmList) 
+models <- caretList(Purchase ~ ., data=trainX, trControl=trainControl, methodList=algorithmList) 
 results <- resamples(models)
 summary(results)
 # Box plots to compare models
