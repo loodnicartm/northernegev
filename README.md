@@ -1,2 +1,2 @@
 # northernegev
-Verifying shichs and terraces
+Verifying shichs and limans
